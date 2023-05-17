@@ -10,6 +10,7 @@ import com.example.account.repository.AccountUserRepository;
 import com.example.account.repository.TransactionRepository;
 import com.example.account.type.AccountStatus;
 import com.example.account.type.TransactionResultType;
+import com.example.account.type.TransactionType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -52,7 +53,9 @@ public class TransactionService {
 
         account.useBalance(amount);
 
-        return saveAndGetTransaction(amount, account, S);
+        return TransactionDto.fromEntity(
+                saveAndGetTransaction(amount, account, S, USE)
+        );
     }
 
     private static void validateUseBalance(Long amount, AccountUser user, Account account) {
@@ -74,22 +77,61 @@ public class TransactionService {
         Account account = accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new AccountException(ACCOUNT_NOT_FOUND));
 
-        saveAndGetTransaction(amount, account, F);
+        saveAndGetTransaction(amount, account, F, USE);
     }
 
-    private TransactionDto saveAndGetTransaction(Long amount, Account account, TransactionResultType type) {
-        return TransactionDto.fromEntity(
-                transactionRepository.save(
-                        Transaction.builder()
-                                .transactionType(USE)
-                                .transactionResultType(type)
-                                .account(account)
-                                .amount(amount)
-                                .balanceSnapshot(account.getBalance())
-                                .transactionId(UUID.randomUUID().toString().replace("-", ""))
-                                .transactedAt(LocalDateTime.now())
-                                .build()
-                )
+    private Transaction saveAndGetTransaction(Long amount, Account account,
+                                                 TransactionResultType resultType,
+                                                 TransactionType transactionType) {
+        return transactionRepository.save(
+                Transaction.builder()
+                        .transactionType(transactionType)
+                        .transactionResultType(resultType)
+                        .account(account)
+                        .amount(amount)
+                        .balanceSnapshot(account.getBalance())
+                        .transactionId(UUID.randomUUID().toString().replace("-", ""))
+                        .transactedAt(LocalDateTime.now())
+                        .build()
         );
+    }
+
+    @Transactional
+    public TransactionDto cancelBalance(String transactionId, String accountNumber, Long amount) {
+        Transaction transaction = transactionRepository.findByTransactionId(transactionId)
+                .orElseThrow(() -> new AccountException(TRANSACTION_NOT_FOUND));
+
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new AccountException(ACCOUNT_NOT_FOUND));
+
+        validateCancelBalance(amount, transaction, account);
+
+        account.cancelBalance(amount);
+
+       return TransactionDto.fromEntity(
+               saveAndGetTransaction(amount, account, S, CANCEL)
+       );
+    }
+
+    private static void validateCancelBalance(Long amount, Transaction transaction, Account account) {
+        if (!Objects.equals(transaction.getAccount().getId(), account.getId())){
+            throw new AccountException(TRANSACTION_ACCOUNT_UN_MATCH);
+        }
+
+        if (!Objects.equals(transaction.getAmount(), amount)){
+            throw new AccountException(CANCEL_MUST_FULLY);
+        }
+
+        if (transaction.getTransactedAt().isBefore(LocalDateTime.now().minusYears(1))){
+            throw new AccountException(TOO_OLD_TRANSACTION_TO_CANCEL);
+        }
+    }
+
+    @Transactional
+    public void saveFailedCancelTransactions(String accountNumber, Long amount) {
+        Account account = accountRepository.findByAccountNumber(accountNumber)
+                .orElseThrow(() -> new AccountException(ACCOUNT_NOT_FOUND));
+
+        saveAndGetTransaction(amount, account, F, CANCEL);
     }
 }
