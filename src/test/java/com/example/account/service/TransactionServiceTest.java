@@ -492,4 +492,64 @@ class TransactionServiceTest {
         //then
         assertThat(accountException.getErrorCode()).isEqualTo(ACCOUNT_NOT_FOUND);
     }
+
+    @Test
+    @DisplayName("잔금 사용 내역 확인 성공")
+    void successQueryTransaction(){
+        //given
+        AccountUser user = AccountUser.builder()
+                .id(12L)
+                .name("pobi")
+                .build();
+
+        Account account = Account.builder()
+                .id(1L)
+                .accountUser(user)
+                .accountStatus(IN_USE)
+                .balance(10000L)
+                .accountNumber("1000000000")
+                .build();
+
+        Transaction transaction = Transaction.builder()
+                .account(account)
+                .transactionType(USE)
+                .transactionResultType(S)
+                .transactionId("transactionId")
+                .transactedAt(LocalDateTime.now().minusYears(1).minusDays(1))
+                .amount(CANCEL_AMOUNT)
+                .balanceSnapshot(9000L)
+                .build();
+
+        given(transactionRepository.findByTransactionId(anyString()))
+                .willReturn(Optional.of(transaction));
+
+
+        //when
+        TransactionDto transactionDto = transactionService.queryTransaction("transactionId");
+
+        //then
+        assertThat(transactionDto.getTransactionType()).isEqualTo(USE);
+        assertThat(transactionDto.getTransactionResultType()).isEqualTo(S);
+        assertThat(transactionDto.getTransactionId()).isEqualTo("transactionId");
+        assertThat(transactionDto.getAmount()).isEqualTo(CANCEL_AMOUNT);
+        assertThat(transactionDto.getAccountNumber()).isEqualTo("1000000000");
+    }
+
+    @Test
+    @DisplayName("잔액 사용 내역 조회 실패 - 해당 거래 없음")
+    void queryTransaction_TransactionNotFound(){
+        //given
+        given(transactionRepository.findByTransactionId(anyString()))
+                .willReturn(Optional.empty());
+
+        //when
+        AccountException accountException = assertThrows(AccountException.class,
+                () -> transactionService.queryTransaction(
+                        "transactionId"
+                )
+        );
+
+        //then
+        assertThat(accountException.getErrorCode()).isEqualTo(TRANSACTION_NOT_FOUND);
+    }
 }
