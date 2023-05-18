@@ -17,6 +17,7 @@ public enum ErrorCode {
     TRANSACTION_ACCOUNT_UN_MATCH("이 거래는 해당 계좌에서 발생한 거래가 아닙니다."),
     CANCEL_MUST_FULLY("부분 취소는 불가능합니다."),
     TOO_OLD_TRANSACTION_TO_CANCEL("1년이 지난 거래는 취소가 불가능합니다."),
+    INTERNAL_SERVER_ERROR("내부 서버 오류가 발생하였습니다."),
     AMOUNT_EXCEED_BALANCE("거래 금액이 잔금보다 큽니다.");
 
     private final String description;
